@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A complete, reproducible writeup of getting persistent root on the Freewrite Traveler and rebuilding its firmware.">
+<title>Freewrite Traveler — Root Access & Custom Firmware</title>
+
+<style>
+  :root {
+    --paper: #f4f1e8;
+    --paper-raise: #faf8f1;
+    --ink: #1a1712;
+    --ink-soft: #5c5545;
+    --ink-faint: #8b8371;
+    --line: #ded8c8;
+    --line-soft: #e7e2d4;
+    --accent: #2247c9;
+    --accent-ink: #ffffff;
+    --warn: #a8501a;
+    --warn-bg: #f3e6d3;
+    --good: #2c6f49;
+    --code-bg: #1b1a16;
+    --code-ink: #e7e2d3;
+    --code-dim: #9b9484;
+    --code-accent: #86a0ff;
+    --code-str: #b7c98a;
+    --code-warn: #e0a066;
+    --shadow: 0 1px 0 rgba(0,0,0,.04), 0 12px 34px -18px rgba(0,0,0,.28);
+
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+    --serif: "Iowan Old Style", "Charter", "Georgia", "Times New Roman", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+
+    --maxw: 74ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #131210;
+      --paper-raise: #1c1a16;
+      --ink: #ece7d8;
+      --ink-soft: #a89f8b;
+      --ink-faint: #776f5e;
+      --line: #2c291f;
+      --line-soft: #24211a;
+      --accent: #7a97ff;
+      --accent-ink: #0f1220;
+      --warn: #d69a5a;
+      --warn-bg: #2a2117;
+      --good: #7bbf94;
+      --code-bg: #0d0c0a;
+      --code-ink: #e7e2d3;
+      --code-dim: #877f6d;
+      --shadow: 0 1px 0 rgba(0,0,0,.3), 0 18px 40px -20px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #f4f1e8; --paper-raise: #faf8f1; --ink: #1a1712; --ink-soft: #5c5545;
+    --ink-faint: #8b8371; --line: #ded8c8; --line-soft: #e7e2d4; --accent: #2247c9;
+    --accent-ink: #fff; --warn: #a8501a; --warn-bg: #f3e6d3; --good: #2c6f49;
+    --code-bg: #1b1a16; --code-ink: #e7e2d3; --code-dim: #9b9484;
+    --shadow: 0 1px 0 rgba(0,0,0,.04), 0 12px 34px -18px rgba(0,0,0,.28);
+  }
+  :root[data-theme="dark"] {
+    --paper: #131210; --paper-raise: #1c1a16; --ink: #ece7d8; --ink-soft: #a89f8b;
+    --ink-faint: #776f5e; --line: #2c291f; --line-soft: #24211a; --accent: #7a97ff;
+    --accent-ink: #0f1220; --warn: #d69a5a; --warn-bg: #2a2117; --good: #7bbf94;
+    --code-bg: #0d0c0a; --code-ink: #e7e2d3; --code-dim: #877f6d;
+    --shadow: 0 1px 0 rgba(0,0,0,.3), 0 18px 40px -20px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 18px;
+    line-height: 1.66;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* language toggle mechanics */
+  :root[data-lang="ru"] .en { display: none; }
+  :root[data-lang="en"] .ru { display: none; }
+
+  /* ---------- header ---------- */
+  .site-header {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 16px;
+    padding: 12px clamp(16px, 4vw, 40px);
+    background: color-mix(in srgb, var(--paper) 86%, transparent);
+    backdrop-filter: saturate(1.3) blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .brandmark {
+    font-family: var(--mono); font-weight: 700; font-size: 13px;
+    letter-spacing: .04em; color: var(--ink);
+    display: flex; align-items: center; gap: 9px;
+  }
+  .brandmark .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+    animation: pulse 3.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  @media (prefers-reduced-motion: reduce){ .brandmark .dot{ animation:none } }
+  .header-spacer { flex: 1; }
+  .toggle-group { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .toggle-group button {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    letter-spacing: .03em; padding: 7px 11px; border: 0; cursor: pointer;
+    background: transparent; color: var(--ink-soft);
+  }
+  .toggle-group button + button { border-left: 1px solid var(--line); }
+  .toggle-group button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .toggle-group button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- layout ---------- */
+  .layout { display: grid; grid-template-columns: 260px minmax(0,1fr); gap: 0; max-width: 1240px; margin: 0 auto; }
+  .toc {
+    position: sticky; top: 57px; align-self: start; height: calc(100vh - 57px);
+    overflow-y: auto; padding: 30px 14px 60px 24px; border-right: 1px solid var(--line);
+  }
+  .toc-title { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 12px 8px; }
+  .toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+  .toc a {
+    display: block; font-family: var(--mono); font-size: 12.5px; line-height: 1.4;
+    color: var(--ink-soft); text-decoration: none; padding: 7px 10px; border-radius: 7px;
+    border-left: 2px solid transparent;
+  }
+  .toc a:hover { background: var(--line-soft); color: var(--ink); }
+  .toc a.active { color: var(--accent); border-left-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .toc a::before { counter-increment: toc; content: counter(toc, decimal-leading-zero) " "; color: var(--ink-faint); }
+
+  .content { padding: 0 clamp(20px, 5vw, 68px) 120px; min-width: 0; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: clamp(48px, 9vh, 104px) 0 40px; border-bottom: 1px solid var(--line); }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); margin: 0 0 22px; display:flex; align-items:center; gap:10px; }
+  .eyebrow::before { content:""; width: 26px; height: 2px; background: var(--accent); display:inline-block; }
+  h1 { font-family: var(--mono); font-weight: 700; font-size: clamp(30px, 5.4vw, 58px); line-height: 1.04; letter-spacing: -.01em; margin: 0 0 6px; text-wrap: balance; }
+  h1 .accent { color: var(--accent); }
+  .hero .lede { font-size: clamp(19px, 2.4vw, 23px); line-height: 1.5; color: var(--ink-soft); max-width: 60ch; margin: 20px 0 0; }
+  .hero .lede b { color: var(--ink); font-weight: 600; }
+
+  .spec-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px,1fr)); gap: 1px; margin: 40px 0 6px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .spec { background: var(--paper-raise); padding: 15px 16px; }
+  .spec .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+  .spec .v { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--ink); margin-top: 5px; }
+  .spec .v.hot { color: var(--accent); }
+
+  /* ---------- sections ---------- */
+  section.doc { padding: 56px 0; border-bottom: 1px solid var(--line); scroll-margin-top: 74px; }
+  section.doc > .eyebrow { margin-bottom: 14px; }
+  h2 { font-family: var(--mono); font-weight: 700; font-size: clamp(23px, 3.4vw, 34px); line-height: 1.14; letter-spacing: -.01em; margin: 0 0 8px; text-wrap: balance; }
+  h3 { font-family: var(--mono); font-weight: 700; font-size: 18px; letter-spacing: .01em; margin: 38px 0 6px; color: var(--ink); }
+  h3 .num { color: var(--accent); }
+  p { max-width: var(--maxw); margin: 16px 0; }
+  .content a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  strong { font-weight: 600; }
+  em { font-style: italic; color: var(--ink-soft); }
+  ul, ol { max-width: var(--maxw); padding-left: 1.3em; }
+  li { margin: 8px 0; }
+  li::marker { color: var(--ink-faint); }
+  kbd { font-family: var(--mono); font-size: .82em; background: var(--paper-raise); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; color: var(--ink); white-space: nowrap; }
+  code.inl { font-family: var(--mono); font-size: .84em; background: color-mix(in srgb, var(--accent) 10%, var(--paper-raise)); padding: 2px 6px; border-radius: 5px; color: var(--ink); white-space: nowrap; }
+
+  /* code blocks */
+  .code { position: relative; margin: 22px 0; border-radius: 12px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--code-bg) 60%, var(--line)); box-shadow: var(--shadow); }
+  .code .bar { display: flex; align-items: center; gap: 8px; background: color-mix(in srgb, var(--code-bg) 88%, #000); padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .code .bar .tt { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--code-dim); }
+  .code .bar .lamp { width: 8px; height: 8px; border-radius: 50%; background: #4b4740; }
+  .code pre { margin: 0; padding: 16px 18px; overflow-x: auto; background: var(--code-bg); color: var(--code-ink); font-family: var(--mono); font-size: 13.5px; line-height: 1.66; }
+  .code pre .c { color: var(--code-dim); }
+  .code pre .p { color: var(--code-accent); }
+  .code pre .s { color: var(--code-str); }
+  .code pre .w { color: var(--code-warn); }
+  .code pre .g { color: var(--code-dim); }
+
+  /* callouts */
+  .call { display: grid; grid-template-columns: auto 1fr; gap: 14px; max-width: var(--maxw); margin: 24px 0; padding: 16px 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper-raise); }
+  .call .ic { font-family: var(--mono); font-weight: 700; font-size: 13px; }
+  .call p { margin: 0; max-width: none; font-size: 16.5px; }
+  .call p + p { margin-top: 8px; }
+  .call.warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); background: var(--warn-bg); }
+  .call.warn .ic { color: var(--warn); }
+  .call.win { border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+  .call.win .ic { color: var(--good); }
+  .call.first { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 7%, var(--paper-raise)); }
+  .call.first .ic { color: var(--accent); }
+
+  /* steps */
+  .steps { max-width: var(--maxw); margin: 26px 0; padding: 0; list-style: none; counter-reset: step; }
+  .steps > li { position: relative; padding: 0 0 22px 46px; border-left: 2px solid var(--line); margin-left: 15px; }
+  .steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .steps > li::before { counter-increment: step; content: counter(step); position: absolute; left: -16px; top: -3px; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-family: var(--mono); font-weight: 700; font-size: 13px; display: grid; place-items: center; }
+  .steps > li b { display: block; font-family: var(--mono); font-size: 15px; margin: 3px 0 2px; }
+
+  /* data table */
+  .tbl-wrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 13px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { background: var(--paper-raise); color: var(--ink-faint); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { color: var(--accent); }
+
+  .pill { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; border: 1px solid currentColor; display: inline-block; }
+  .pill.ok { color: var(--good); }
+  .pill.no { color: var(--warn); }
+
+  footer.site-foot { padding: 44px clamp(20px,5vw,68px) 80px; color: var(--ink-soft); }
+  footer.site-foot p { font-size: 15px; max-width: 70ch; }
+  .foot-rule { height:1px; background: var(--line); margin: 0 0 30px; }
+
+  /* mobile */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .toc { display: none; }
+  }
+
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(184px, 1fr)); gap: 18px; margin: 26px 0; max-width: none; }
+  .gallery figure { margin: 0; }
+  .gallery img { width: 100%; display: block; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+  .gallery figcaption { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); margin-top: 9px; text-align: center; }
+  .egg { display: grid; grid-template-columns: minmax(0, 300px) 1fr; gap: 26px; align-items: center; margin: 24px 0; max-width: var(--maxw); }
+  .egg img { width: 100%; border-radius: 12px; border: 1px solid var(--line); }
+  .egg .cap { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); margin-top: 10px; }
+  @media (max-width: 640px) { .egg { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+
+<header class="site-header">
+  <span class="brandmark"><span class="dot" aria-hidden="true"></span> FREEWRITE&nbsp;TRAVELER&nbsp;// ROOT</span>
+  <span class="header-spacer"></span>
+  <div class="toggle-group" role="group" aria-label="Theme">
+    <button id="th-light" aria-pressed="false" onclick="setTheme('light')" title="Light theme">☀</button>
+    <button id="th-dark" aria-pressed="false" onclick="setTheme('dark')" title="Dark theme">☾</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Contents">
+    <p class="toc-title"><span class="en">Contents</span></p>
+    <ol id="toc-list">
+      <li><a href="#intro"><span class="en">What & why</span></a></li>
+      <li><a href="#inside"><span class="en">Inside the device</span></a></li>
+      <li><a href="#locks"><span class="en">The locks</span></a></li>
+      <li><a href="#teardown"><span class="en">Teardown</span></a></li>
+      <li><a href="#uart"><span class="en">The UART console</span></a></li>
+      <li><a href="#root"><span class="en">Getting root</span></a></li>
+      <li><a href="#tried"><span class="en">What didn't work</span></a></li>
+      <li><a href="#ssh"><span class="en">USB-C access</span></a></li>
+      <li><a href="#system"><span class="en">System map</span></a></li>
+      <li><a href="#rebuild"><span class="en">Rebuilding the app</span></a></li>
+      <li><a href="#custom"><span class="en">What we changed</span></a></li>
+      <li><a href="#reference"><span class="en">Reference & gotchas</span></a></li>
+      <li><a href="#brick"><span class="en">Anti-brick</span></a></li>
+      <li><a href="#findings"><span class="en">The human side</span></a></li>
+      <li><a href="#end"><span class="en">Disclaimer</span></a></li>
+    </ol>
+  </nav>
+
+  <main class="content">
+
+    <section class="hero" id="top">
+      <p class="eyebrow"><span class="en">The first complete writeup</span></p>
+      <h1>Full control of the <span class="accent">Freewrite&nbsp;Traveler</span></h1>
+      <p class="lede">
+        
+        <span class="en">The Freewrite Traveler is a lovely e-ink typewriter; I bought mine to write offline, with no browser to tempt me. One odd thing: everything you type on it gets mirrored to the Postbox cloud — the maker's servers. You can't add your own fonts or change the layout. Yet inside, if you open it up, it's an ordinary <b>Linux</b> — Debian&nbsp;10 on an <b>i.MX6</b>. Just locked from the outside. So we climbed in: got <b>persistent root over SSH</b>, took the app apart, rewrote it to suit ourselves. Here's exactly how. Honestly and in full — both what worked and what didn't.</span>
+      </p>
+
+      <div class="spec-strip" aria-hidden="false">
+        <div class="spec"><div class="k">SoC</div><div class="v">NXP i.MX6SLL</div></div>
+        <div class="spec"><div class="k">RAM</div><div class="v">512 MiB</div></div>
+        <div class="spec"><div class="k">Kernel</div><div class="v">Linux 4.14.98</div></div>
+        <div class="spec"><div class="k">Userland</div><div class="v">Debian 10</div></div>
+        <div class="spec"><div class="k">App</div><div class="v">Electron 2.0.7</div></div>
+        <div class="spec"><div class="k">DB</div><div class="v">PostgreSQL 11</div></div>
+        <div class="spec"><div class="k">Bootloader</div><div class="v">U-Boot 2018.03</div></div>
+        <div class="spec"><div class="k">Access</div><div class="v hot">root · SSH · rw</div></div>
+      </div>
+    </section>
+
+    <section class="doc" id="intro">
+      <p class="eyebrow">01 — <span class="en">Context</span></p>
+      <h2><span class="en">What this is and why</span></h2>
+      <p>
+        
+        <span class="en">Straight up: I'm not a programmer. At all — I work in communications and had never touched code before this. Everything described here we did together with <b>Claude</b> (Anthropic's language model): I explained what I wanted and what I saw on the Traveler's screen, it wrote the commands and code, I ran them on my end and reported back. So the «we» from here on is the honest word for it: I explained and tested, Claude wrote and prompted. The two of us climbed in together.</span>
+      </p>
+      <p>
+        
+        <span class="en">The Traveler is sold as a "distraction-free typewriter": e-ink screen, mechanical keyboard, no browser. But the idea comes with a lock. Everything you write is mirrored to the <b>Postbox</b> cloud (Astrohaus servers). Locally the drafts do stay, by the way — but inside a database you can't just copy out as files. You can't add your own fonts. The layout is whatever they gave you. And the day that cloud shuts down, the machine turns into a brick that "searches for a connection." (That exact line, in fact, once greeted me mid-trip — a slightly sad sight.)</span>
+      </p>
+      <p>
+        
+        <span class="en">I wanted to give the device back what should already belong to its owner: <b>full access to its own Linux</b>. Real root — the kind that survives reboots and writes straight to the root filesystem, not an SDK sandbox and not a "developer mode".</span>
+      </p>
+      <div class="call first">
+        <div class="ic">★</div>
+        <div>
+          
+          <p class="en"><b>About that word, "first" — honestly, no fanfare.</b> We're not the first to look inside. Back in October 2022 a user named <b>machinaut</b> posted a full serial boot log of the Traveler on <a href="https://pastebin.com/TR5rWvxe">Pastebin</a> — so people were on the UART console years before us, and it's the very same hardware: i.MX6, Debian 10. In January 2024 <b>Dr Francintosh</b> (<a href="https://drfrancintosh.wordpress.com/freewrite-traveler-keyboard-repair/">blog</a>) opened the machine — but only to fix the keyboard, signing off that he'd "likely try to figure out how to reprogram" it. No root, no code of his own. There may well be a writeup of the root itself, close to ours, somewhere; if a precise link turns up, I'll add it here with respect. But a complete, reproducible account — how to reach persistent root and rebuild the firmware to suit yourself — I never found, however hard I looked. So "first" here is a modest word: it's about the whole recipe, not about us being uniquely clever.</p>
+        </div>
+      </div>
+      <div class="call warn">
+        <div class="ic">⚠</div>
+        <div>
+          
+          <p class="en"><b>This voids the warranty and can brick the device.</b> Everything below is about <em>your</em> hardware, at your own risk. We don't flash the bootloader or kernel (see "Anti-brick"), so the risk is manageable — but real. Don't do this to a machine you're not ready to lose.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc" id="inside">
+      <p class="eyebrow">02 — <span class="en">Hardware & software</span></p>
+      <h2><span class="en">Inside the device</span></h2>
+      <p>
+        
+        <span class="en">Under the pleasant shell sits a perfectly ordinary embedded Linux computer. That is the whole key: once you're inside, it's just Debian from there.</span>
+      </p>
+      <ul>
+        <li><span class="en"><b>SoC:</b> NXP i.MX6SLL rev 1.1 (ARMv7, USB-OTG node <code class="inl">0x02184000</code>), 512 MiB RAM.</span></li>
+        <li><span class="en"><b>Bootloader:</b> U-Boot 2018.03 (built Sep 2020). Device-tree model: "Astrohaus Freewrite Traveler."</span></li>
+        <li><span class="en"><b>Kernel:</b> Linux 4.14.98 (Buildroot 2019.08).</span></li>
+        <li><span class="en"><b>Userland:</b> Debian 10 with systemd, OpenSSH 7.9.</span></li>
+        <li><span class="en"><b>Application:</b> "finchley" — Electron 2.0.7 (Node.js + React/Draft.js), running as the unprivileged user <code class="inl">finchley</code>.</span></li>
+        <li><span class="en"><b>Database:</b> PostgreSQL 11, cluster <code class="inl">ast_v1</code>, database <code class="inl">freewrite</code> — this is where drafts, folders, the user and sessions live.</span></li>
+        <li><span class="en"><b>Screen:</b> e-ink via the <code class="inl">mxc_epdc_fb</code> controller, framebuffer <code class="inl">/dev/fb0</code> 1024×1536, physically split by a bezel into a large writing canvas (≈600&nbsp;px in CSS units) and a narrow status strip (≈156&nbsp;px).</span></li>
+        <li><span class="en"><b>Wi-Fi:</b> the <code class="inl">eagle_sdio</code> chip, <em>compiled into the kernel</em> (not a module), 2.4&nbsp;GHz only, staged "eagle" firmware.</span></li>
+        <li><span class="en"><b>OTA updates:</b> Mender (A/B partitions). There is no public DFU/USB mode on the Traveler — firmware arrives over Wi-Fi only.</span></li>
+      </ul>
+
+      <h3><span class="en">Disk partitions</span></h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th><span class="en">Partition</span></th>
+            <th><span class="en">Mount</span></th>
+            <th>FS</th>
+            <th><span class="en">Note</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td>mmcblk1p4</td><td>/</td><td>ext4 rw</td><td><span class="en">root, 2&nbsp;GB — edits persist</span></td></tr>
+            <tr><td>mmcblk1p5</td><td>/data</td><td>ext4</td><td><span class="en">data, 1&nbsp;GB (sync/journal)</span></td></tr>
+            <tr><td>boot1</td><td>/memristor</td><td>ro</td><td><span class="en">boot hooks</span></td></tr>
+            <tr><td>mmc0 p0</td><td>—</td><td>FAT</td><td><span class="en"><code class="inl">testjig</code>, <code class="inl">first</code> files</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="doc" id="locks">
+      <p class="eyebrow">03 — <span class="en">Why it's hard</span></p>
+      <h2><span class="en">The locks on the door</span></h2>
+      <p>
+        
+        <span class="en">Astrohaus closed the obvious doors. Understanding these locks saves hours — you immediately know what will <em>not</em> work.</span>
+      </p>
+      <ol>
+        <li><span class="en"><b>Zero boot delay.</b> <code class="inl">bootdelay=0</code> — "Hit any key: 0." The window to interrupt U-Boot is nearly nonexistent; the key must already be held at power-on.</span></li>
+        <li><span class="en"><b>Secure Boot (HAB) is closed.</b> <code class="inl">HAB Config 0xcc / State 0x99</code>. You cannot load your own U-Boot or kernel over serial-download (SDP) — the signature check will reject it.</span></li>
+        <li><span class="en"><b>No login on UART.</b> The serial console prints boot logs, but no getty/login is running there — it won't just hand you a shell.</span></li>
+        <li><span class="en"><b>No public recovery.</b> The key combo for the Traveler's fastboot/recovery is undocumented — we later worked it out ourselves (<b>E&nbsp;+&nbsp;X&nbsp;+&nbsp;L</b>, see below); the factory reset wipes data.</span></li>
+      </ol>
+      <div class="call win">
+        <div class="ic">✓</div>
+        <div>
+          
+          <p class="en"><b>The loophole that unlocks everything:</b> HAB most likely covers only the <em>bootloader and kernel</em>, not the root filesystem. That means the kernel will boot with whatever arguments we hand it at runtime — including <code class="inl">init=/bin/sh</code>. Nothing needs flashing — for a single boot we just swap <code class="inl">init</code> and write our own key into the rootfs.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc" id="teardown">
+      <p class="eyebrow">04 — <span class="en">Disassembly</span></p>
+      <h2><span class="en">Opening the case</span></h2>
+      <p>
+        
+        <span class="en">The teardown is simple and non-destructive.</span>
+      </p>
+      <ol class="steps">
+        <li><b><span class="en">Peel off the rubber feet.</span></b><span class="en">Six screws hide underneath, on the base.</span></li>
+        <li><b><span class="en">Remove the six screws.</span></b><span class="en">Standard Phillips; keep them apart.</span></li>
+        <li><b><span class="en">Disconnect the USB-C ribbon.</span></b><span class="en">The two halves then separate freely.</span></li>
+      </ol>
+      <p>
+        
+        <span class="en">The board (barcode <code class="inl">202102251688</code> ≈ 2021-02-25, marking <code class="inl">7221A</code>) is black, littered with labelled test points TP1–TP113+. The blue FFC connector <code class="inl">J3</code> is the screen and keyboard, <em>not</em> UART.</span>
+      </p>
+      <h3><span class="en">Where UART lives</span></h3>
+      <p>
+        
+        <span class="en">The prime candidate is a <b>row of six through-hole pads in a line near the barcode</b> (with resistors R58/R60/R62, R82, R111–114 nearby). There are no TX/RX/GND labels — you work out the pinout yourself. In practice it turned out to be:</span>
+      </p>
+      <ul>
+        <li><span class="en"><b>GND</b> — the rightmost pad (the square pad = "pin 1").</span></li>
+        <li><span class="en"><b>Board TX</b> — second from the left.</span></li>
+        <li><span class="en"><b>Board RX</b> — adjacent to TX.</span></li>
+      </ul>
+      <p>
+        
+        <span class="en">How to find it if your revision differs: <b>GND</b> — continuity-test each pad against bare metal (the USB-C shell or a screw). <b>TX</b> — listen with your adapter at 115200, tie the grounds together, and rotate the adapter's RX across the pads while powering the device on: wherever the boot log appears is TX. <b>RX</b> — the neighbour.</span>
+      </p>
+
+      <h3><span class="en">What you'll need</span></h3>
+      <ul>
+        <li><span class="en">a small Phillips screwdriver and a thin plastic spudger</span></li>
+        <li><span class="en">a <b>3.3&nbsp;V</b> USB-UART adapter (we used an FT232RL; the level jumper on 3.3&nbsp;V, not 5&nbsp;V, or you can damage the SoC)</span></li>
+        <li><span class="en">a multimeter in continuity mode — to find GND</span></li>
+        <li><span class="en">a soldering iron optional: the pads are through-hole, you can also just press pins in</span></li>
+      </ul>
+
+      <h3><span class="en">A map of the board</span></h3>
+      <p>
+        
+        <span class="en">The revision we opened: barcode <code class="inl">202102251688</code> (≈&nbsp;25&nbsp;Feb&nbsp;2021), marking <code class="inl">7221A</code>. The board is black and literally littered with labelled test points <code class="inl">TP1</code>–<code class="inl">TP113</code>+. Don't be fooled: the blue FFC connector <code class="inl">J3</code> is the screen-and-keyboard ribbon, nothing to do with UART. The row of six <b>through-hole</b> pads you want stands on its own line by the barcode, ringed by resistors <code class="inl">R58/R60/R62</code>, <code class="inl">R82</code>, <code class="inl">R111</code>–<code class="inl">R114</code>. It has no silkscreen labels — re-check the pinout from the UART section against your own board with a multimeter: revisions can differ.</span>
+      </p>
+      <div class="call warn">
+        <div class="ic">⚠</div>
+        <div>
+          
+          <p class="en"><b>Don't look for a reflash path here.</b> With the board in front of you it's tempting to load your own image over SDP. It won't work: Secure Boot is closed (see "What didn't work"). The one working gate is UART&nbsp;→&nbsp;U-Boot — that's where we head.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc" id="uart">
+      <p class="eyebrow">05 — <span class="en">Serial console</span></p>
+      <h2><span class="en">The UART console</span></h2>
+      <p>
+        
+        <span class="en">You need a <b>3.3&nbsp;V</b> USB-UART adapter (we used an FT232RL with the jumper set to 3.3&nbsp;V). Speed <b>115200 8N1</b>. Wire GND↔GND, board-TX→adapter-RX, board-RX→adapter-TX.</span>
+      </p>
+      <p>
+        
+        <span class="en">A logger on the Mac that survives the whole process:</span>
+      </p>
+      <div class="code">
+        <div class="bar"><span class="lamp"></span><span class="tt">macOS · screen</span></div>
+<pre><span class="c"># log everything to a file so the boot log can be grepped</span>
+screen -L -d -m /dev/cu.usbserial-XXXXXXXX 115200
+<span class="c"># watch: tail -f screenlog.0  (binary junk at the start, use grep -a)</span></pre>
+      </div>
+      <div class="call warn">
+        <div class="ic">⚠</div>
+        <div>
+          
+          <p class="en"><b>Reliable boot capture.</b> A cold start yields the full U-Boot log and <code class="inl">Reset cause: POR</code>: first <em>power off</em> (<kbd>new</kbd>+<kbd>Power</kbd> ≈3&nbsp;s), then <em>power on</em> (<kbd>Power</kbd>). A "15&nbsp;s Power hold" doesn't always give POR.</p>
+        </div>
+      </div>
+      <p>
+        
+        <span class="en">From the log you'll see what we saw: U-Boot 2018.03, i.MX6SLL, 512&nbsp;MiB, model "Astrohaus Freewrite Traveler," then the kernel and systemd, the PostgreSQL cluster <code class="inl">ast_v1</code>, a <code class="inl">Vector</code> service, the "Smart Typewriter frontend." U-Boot also prints the scan code of any key held at power-on — "Detected N keys for recovery: Key XX."</span>
+      </p>
+
+      <h3><span class="en">What the boot log tells you</span></h3>
+      <p>
+        
+        <span class="en">The first full boot log already tells you most of what you need to know about the system. Here are the lines worth capturing it for, and what each one means:</span>
+      </p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th><span class="en">Line in the log</span></th><th><span class="en">What it means</span></th></tr></thead>
+          <tbody>
+            <tr><td>U-Boot 2018.03 (Sep 2020)</td><td><span class="en">the bootloader; also where <code class="inl">bootdelay=0</code> lives</span></td></tr>
+            <tr><td>i.MX6SLL rev1.1 · 512 MiB</td><td><span class="en">the SoC and RAM</span></td></tr>
+            <tr><td>Model: Astrohaus Freewrite Traveler</td><td><span class="en">the device-tree name</span></td></tr>
+            <tr><td>HAB Config 0xcc / State 0x99</td><td><span class="en"><b>Secure Boot closed</b> — no custom image</span></td></tr>
+            <tr><td>env ... bad CRC</td><td><span class="en">the MMC environment is corrupt → the default is used</span></td></tr>
+            <tr><td>Reset cause: POR</td><td><span class="en">a <b>cold</b> boot was captured (what you want)</span></td></tr>
+            <tr><td>Detected N keys for recovery: Key XX</td><td><span class="en">the scan code of a key held at power-on</span></td></tr>
+            <tr><td>Linux 4.14.98 (Buildroot 2019.08)</td><td><span class="en">the kernel</span></td></tr>
+            <tr><td>PostgreSQL cluster ast_v1</td><td><span class="en">where your text lives</span></td></tr>
+            <tr><td>Vector · Smart Typewriter frontend</td><td><span class="en">the app's system services</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        
+        <span class="en">Note <code class="inl">env ... bad CRC</code>: the on-disk U-Boot environment is corrupt, so the loader falls back to its compiled-in default — another reason you can't rely on <code class="inl">saveenv</code>, and why the <code class="inl">init=</code> override is done "live" only.</span>
+      </p>
+    </section>
+
+    <section class="doc" id="root">
+      <p class="eyebrow">06 — <span class="en">The core of it</span></p>
+      <h2><span class="en">Getting root</span></h2>
+      <p>
+        
+        <span class="en">The idea — "Path B": flash nothing; for a <em>single</em> boot, make the kernel launch a plain shell instead of the system (<code class="inl">init=/bin/sh</code>), get it as root, remount the root read-write, and plant a permanent way in. HAB permits this: it doesn't validate kernel arguments, and the rootfs is unsigned.</span>
+      </p>
+
+      <h3><span class="en">First: how to interrupt the bootloader at all</span></h3>
+      <p>
+        
+        <span class="en">The crux is <code class="inl">bootdelay=0</code>. U-Boot doesn't wait: the "Hit any key to stop autoboot: 0" line flies past in microseconds, faster than a human can press. The trick is to <b>not "press at the right moment," but to have a keystroke already sitting in the UART receive buffer</b> when U-Boot reaches that check. In practice: start <b>holding a key</b> (or streaming characters) in your terminal <em>a heartbeat before</em> you apply power. One of them lands in the micro-window — autoboot stops and the <code class="inl">=&gt;</code> prompt appears. The trick isn't reaction speed but a buffer that's already loaded.</span>
+      </p>
+
+      <h3><span class="en">The exact moment of access</span></h3>
+      <p>
+        
+        <span class="en">Now the most important — and simplest — part, the one that usually gets lost in explanations. We <b>don't exploit anything and don't crack a password</b>. We tell the bootloader <em>one</em> thing: "run this program instead of the system" — and hand it <code class="inl">init=/bin/sh</code>. The kernel boots as usual, but its first and only process (<b>PID&nbsp;1</b>) is not systemd (which would have brought up the password login) but a bare <code class="inl">/bin/sh</code>. And PID&nbsp;1 <b>runs as root (uid&nbsp;0) by definition</b>, and a bare shell has <b>no password prompt</b>.</span>
+      </p>
+      <div class="call first">
+        <div class="ic">→</div>
+        <div>
+          
+          <p class="en"><b>Where root actually appears.</b> The instant a <code class="inl">#</code> prompt appears on the UART after <code class="inl">boot</code> — you are <em>already</em> root, with full read/write over the entire disk. No password, no exploit: you simply told the bootloader to skip the login system and hand you a root shell. Everything after that (the key, the password) is only <em>cementing</em> the access you already have, so it comes up by itself after a normal reboot.</p>
+        </div>
+      </div>
+      <div class="call win">
+        <div class="ic">✓</div>
+        <div>
+          
+          <p class="en"><b>Why Secure Boot (HAB) doesn't stop this.</b> HAB signs <em>images</em> — the bootloader and the kernel. But it checks neither the <em>arguments</em> you pass the kernel (<code class="inl">init=…</code>) nor the <em>filesystem</em> it mounts. We changed not a single byte of the signed images — we only changed <em>how</em> the signed kernel is invoked, for one boot. That is exactly why "you can't flash your own U-Boot, yet you can still get root."</p>
+        </div>
+      </div>
+
+      <h3><span class="en">Step by step</span></h3>
+      <ol class="steps">
+        <li><b><span class="en">Interrupt U-Boot.</span></b><span class="en">Because of <code class="inl">bootdelay=0</code>, spam a key in the terminal exactly as power is applied, until the <code class="inl">=&gt;</code> prompt appears.</span></li>
+        <li><b><span class="en">Override init at runtime — without saving.</span></b><span class="en">Critically: do <em>not</em> run <code class="inl">saveenv</code>. We change the environment for this boot only.</span></li>
+        <li><b><span class="en">Boot into a single-user root shell.</span></b><span class="en">The kernel hands you <code class="inl">/bin/sh</code> as root, no password.</span></li>
+        <li><b><span class="en">Remount rw and plant your way in.</span></b><span class="en">Your ssh key into <code class="inl">/root/.ssh/authorized_keys</code>, set a root password, unlock root in <code class="inl">/etc/shadow</code>.</span></li>
+        <li><b><span class="en">Sync and reboot normally.</span></b><span class="en">After a normal boot, key-based login comes up on its own.</span></li>
+      </ol>
+      <div class="code">
+        <div class="bar"><span class="lamp"></span><span class="tt">U-Boot → single-user root</span></div>
+<pre><span class="c"># at the U-Boot =&gt; prompt (do NOT save the environment!)</span>
+<span class="p">=&gt;</span> setenv bootargs <span class="s">${bootargs} init=/bin/sh rw</span>
+<span class="p">=&gt;</span> boot
+
+<span class="c"># we're in a root shell. remount the root read-write:</span>
+<span class="p">#</span> mount -o remount,rw /
+
+<span class="c"># your public key (one line, no wrapping):</span>
+<span class="p">#</span> mkdir -p /root/.ssh
+<span class="p">#</span> echo <span class="s">"ssh-ed25519 AAAA...your_key..."</span> &gt; /root/.ssh/authorized_keys
+<span class="p">#</span> chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys
+
+<span class="c"># backup root password + unlock the account:</span>
+<span class="p">#</span> passwd root
+<span class="p">#</span> sync
+<span class="p">#</span> reboot -f</pre>
+      </div>
+      <div class="call warn">
+        <div class="ic">⚠</div>
+        <div>
+          
+          <p class="en"><b>UART mangles pastes.</b> This serial console <em>drops</em> multi-line pastes and lines with quotes (it will eat a <code class="inl">'</code> and hang on <code class="inl">&gt;</code>, or wedge junk into the password). The rule: send <b>one short line at a time</b>, and verify by <b>reading the actual file</b> (<code class="inl">cat</code>/<code class="inl">grep</code>), never by the terminal echo. Do all the setup in the live shell <em>before</em> the reboot — there a typo is one command to fix; after the reboot it isn't.</p>
+        </div>
+      </div>
+      <div class="call win">
+        <div class="ic">✓</div>
+        <div>
+          
+          <p class="en"><b>Persistence confirmed.</b> The root <code class="inl">/dev/mmcblk1p4</code> is ext4 rw, so the key, the password and every later edit survive reboots (verified: fresh boot, key in place, login came up by itself). This is FULL root, not an SDK sandbox.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc" id="tried">
+      <p class="eyebrow">07 — <span class="en">Dead ends</span></p>
+      <h2><span class="en">What we tried that didn't work</span></h2>
+      <p>
+        
+        <span class="en">The road to root was not straight. Here are the dead ends — honestly, in order. Each one saves you time: don't go there.</span>
+      </p>
+
+      <h3><span class="en">✗ The single SDK login over SSH</span></h3>
+      <p>
+        
+        <span class="en">The first thing you try on a plugged-in device is SSH. It brings up a USB gadget, but only tcp/22 is open, and the documented <code class="inl">sdk:sdk</code> over IPv6 link-local answers <b>Permission denied</b>. Guessing passwords is pointless and harmful — the device has a classifier that kills brute force; only single documented logins get through.</span>
+      </p>
+
+      <h3><span class="en">✗ The sanctioned SDK &amp; extensions</span></h3>
+      <p>
+        
+        <span class="en">Freewrite has an official developer path (the garnet SDK): a static IPv4 (<code class="inl">192.168.99.44 → .190</code>), sFTP <code class="inl">sdk:sdk</code>, an <code class="inl">extensions/</code> folder, and "Preflight" JS hooks that run <em>before</em> a document is uploaded to Postbox. It's <b>useful</b> (you can intercept/encrypt/route a draft), but it's a <b>sandbox</b>: a different user, not root, no access to the filesystem or the system. For full control, that isn't enough.</span>
+      </p>
+
+      <h3><span class="en">✗ Flashing our own bootloader/kernel (SDP)</span></h3>
+      <p>
+        
+        <span class="en">The i.MX6 supports serial-download (SDP) — so, seemingly, flash your own U-Boot and do as you please. No: <b>Secure Boot HAB is closed</b> (<code class="inl">HAB Config 0xcc / State 0x99</code>), and an unsigned image is rejected. That is exactly why we <em>don't</em> flash — we go around it through kernel arguments (see "Getting root").</span>
+      </p>
+
+      <h3><span class="en">The recovery combo: guessing failed, so we reverse-engineered it</span></h3>
+      <p>
+        
+        <span class="en">At boot U-Boot prints the scan code of a held key: "Detected N keys for recovery: Key XX." We tried single keys — <b>35 (<kbd>;</kbd>), 39, 42, 61</b> — all "Fastboot: Normal." Dead end: the entry turned out to be a multi-key combo, and nobody had published which one. So we came at it from the other side — pulled U-Boot straight off the device (<code class="inl">/dev/mmcblk1boot0</code>), worked out the load address from the IVT header (<code class="inl">0x877ff000</code>), disassembled it in radare2, and found the function. It builds a three-bit tally: one key from each of three groups — and if all three are held, it boots the recovery kernel (a fourth key, by contrast, throws it into panic). The scan codes spelled <b>E&nbsp;+&nbsp;X&nbsp;+&nbsp;L</b> — the same chord as the factory reset on the sibling Freewrite Alpha. So the Traveler's recovery is <b>E&nbsp;+&nbsp;X&nbsp;+&nbsp;L, held at power-on</b>. We already had root by then, so we didn't need recovery — we just wanted to close the question.</span>
+      </p>
+
+      <h3><span class="en">✗ Small false trails</span></h3>
+      <ul>
+        <li><span class="en"><b>"Hold Power 15&nbsp;s"</b> to restart — does <em>not</em> always give a clean POR log. Only a full power-off (<kbd>new</kbd>+<kbd>Power</kbd> ≈3&nbsp;s) then power-on is reliable.</span></li>
+        <li><span class="en"><b>"The device doesn't serve DHCP."</b> At first the Mac took an APIPA <code class="inl">169.254.x</code> and we assumed there was none. In fact the device <em>does</em> bring up DHCP itself (the Mac gets <code class="inl">.44</code>, the device <code class="inl">.190</code>). A false alarm.</span></li>
+      </ul>
+    </section>
+
+    <section class="doc" id="ssh">
+      <p class="eyebrow">08 — <span class="en">Permanent way in</span></p>
+      <h2><span class="en">Access over USB-C</span></h2>
+      <p>
+        
+        <span class="en">Plugged into a computer, the Traveler brings up a USB-C network gadget. The Mac gets an interface (ours: <code class="inl">en8</code>), and the device serves DHCP itself: the Mac takes <code class="inl">192.168.99.44</code>, the device is <code class="inl">192.168.99.190</code>, with SSH open on tcp/22. The address lives as long as the cable is in.</span>
+      </p>
+      <div class="code">
+        <div class="bar"><span class="lamp"></span><span class="tt">~/.ssh/config</span></div>
+<pre>Host freewrite
+    HostName 192.168.99.190
+    User root
+    IdentityFile ~/.ssh/freewrite_ed25519
+    StrictHostKeyChecking accept-new</pre>
+      </div>
+      <div class="code">
+        <div class="bar"><span class="lamp"></span><span class="tt">now simply</span></div>
+<pre><span class="p">$</span> ssh freewrite
+<span class="g">root@59a291782d3941d7:~#</span> <span class="c"># full root — from here on it is just Debian.</span></pre>
+      </div>
+      <div class="call warn">
+        <div class="ic">⚠</div>
+        <div>
+          
+          <p class="en"><b>The device sleeps aggressively.</b> The <code class="inl">baker-powerd</code> daemon drops the USB bridge after about two minutes of idle — SSH disconnects. <code class="inl">systemctl stop powerd</code> keeps it awake (reversible with a reboot); or simply work fast and wake it with a keypress. After a drop, wake the device and <code class="inl">en8</code>/<code class="inl">.190</code> return by themselves.</p>
+        </div>
+      </div>
+    </section>
+    <section class="doc" id="system">
+      <p class="eyebrow">09 — <span class="en">How it fits together</span></p>
+      <h2><span class="en">System map</span></h2>
+      <p>
+        
+        <span class="en">The application is called <b>finchley</b> and lives in <code class="inl">/astrohaus/finchley/</code>. Understanding its two halves saves enormous time.</span>
+      </p>
+      <ul>
+        <li><span class="en"><b>Main process</b> — <code class="inl">core/</code> and <code class="inl">main.js</code>. Plain Node.js, <em>required at runtime</em>. Edit <code class="inl">core/*.js</code> + restart finchley and the change is live, <b>no rebuild</b>.</span></li>
+        <li><span class="en"><b>Renderer</b> — <code class="inl">sdk/ui/</code> (React), compiled into <code class="inl">dist/bundle.js</code> by webpack. Any UI change requires a <b>rebuild</b> (see §09).</span></li>
+        <li><span class="en"><b>Launch:</b> the systemd unit <code class="inl">finchley.service</code> (restart with <code class="inl">systemctl restart finchley.service</code>). Power and sleep are handled by <code class="inl">powerd.service</code> (the <code class="inl">baker-powerd</code> daemon).</span></li>
+      </ul>
+
+      <h3><span class="en">Where the text lives</span></h3>
+      <p>
+        
+        <span class="en">Drafts live in PostgreSQL (database <code class="inl">freewrite</code>, <code class="inl">127.0.0.1:5432</code>). The key table is <code class="inl">document</code> (<code class="inl">uuid</code>, <code class="inl">title</code>, <code class="inl">body</code>, <code class="inl">uploaded</code>, <code class="inl">uploadedAt</code>, <code class="inl">folder_id</code>, <code class="inl">createdAt</code>…). There's also <code class="inl">folder</code>, <code class="inl">user</code>, <code class="inl">session</code>, <code class="inl">printjob</code>, <code class="inl">device_shred_jobs</code>. Access is via the postgres system user:</span>
+      </p>
+      <div class="code">
+        <div class="bar"><span class="lamp"></span><span class="tt">psql</span></div>
+<pre><span class="p">#</span> su - postgres -c <span class="s">'psql -d freewrite -tA -c "SELECT uuid,title,uploaded FROM document;"'</span></pre>
+      </div>
+      <div class="call warn">
+        <div class="ic">☁</div>
+        <div>
+          
+          <p class="en"><b>Your text stays on the device — in this very database.</b> The stock sync daemon <code class="inl">/astrohaus/highgate/</code> (compiled to <code class="inl">.so</code> via Cython) mirrors drafts to <code class="inl">postbox.getfreewrite.com</code> and sets an <code class="inl">uploaded</code> flag. But it doesn't wipe them locally: a <code class="inl">document</code> row disappears only when you yourself shred or archive a draft — that's when a <code class="inl">device_shred_jobs</code> entry shows up. So there is somewhere to pull your writing from, which is exactly what we did (see §10).</p>
+        </div>
+      </div>
+
+      <h3><span class="en">The table schema</span></h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th><span class="en">Table</span></th><th><span class="en">Key columns</span></th></tr></thead>
+          <tbody>
+            <tr><td>document</td><td>uuid · id · title(≤50) · body · uploaded · uploadedAt · folder_id · bookmarked · createdAt</td></tr>
+            <tr><td>folder</td><td><span class="en">folders A/B/C (folder_id 1/2/3)</span></td></tr>
+            <tr><td>user</td><td>font_size · languages[] · is_tooltip_shown · ...</td></tr>
+            <tr><td>session</td><td><span class="en">session / user</span></td></tr>
+            <tr><td>printjob</td><td><span class="en">print jobs</span></td></tr>
+            <tr><td>device_shred_jobs</td><td><span class="en">shred/archive queue — only on your explicit action</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        
+        <span class="en">✓ The text <b>is stored</b> here, in <code class="inl">document</code>, and survives reboots. It's mirrored to Postbox (<code class="inl">uploaded</code>/<code class="inl">uploadedAt</code>), but stays locally — gone only on your own shred or archive. So there is something to pull off the device: our sync reads the <code class="inl">.md</code> straight from here.</span>
+      </p>
+
+      <h3><span class="en">The sync daemon — "highgate"</span></h3>
+      <p>
+        
+        <span class="en">The upload logic lives in <code class="inl">/astrohaus/highgate/</code> and is <b>compiled to <code class="inl">.so</code></b> via Cython (<code class="inl">highgate.so</code>, <code class="inl">fota_*.so</code>, <code class="inl">setup.so</code>) — hard to read or patch directly. Endpoints: <code class="inl">postbox.getfreewrite.com</code> (drafts) and <code class="inl">repo(-traveler).astrohaus.com</code> (FOTA). <b>Takeaway:</b> rewriting sync is easier not inside the <code class="inl">.so</code> but by intercepting at the hosts/DNS level, disabling daemons, or via an SDK extension — which is what we did (see "What we changed").</span>
+      </p>
+
+      <h3><span class="en">Inside finchley</span></h3>
+      <ul>
+        <li><span class="en"><code class="inl">main.js</code> + <code class="inl">core/</code> — the main process: Sequelize models, dbus, daemons. Edit + restart = live, no rebuild.</span></li>
+        <li><span class="en"><code class="inl">sdk/ui/</code> — the renderer (React); webpacked into <code class="inl">dist/bundle.js</code>. Fonts live here too as <code class="inl">dist/*.ttf</code>.</span></li>
+        <li><span class="en"><code class="inl">preload.js</code> — the Electron bridge; <code class="inl">core/extensions</code> — built-in hooks; <code class="inl">/data/freewrite/extensions</code> — user (SDK) ones.</span></li>
+        <li><span class="en">Device settings: <code class="inl">/data/freewrite/config/settings.json</code>.</span></li>
+      </ul>
+    </section>
+
+    <section class="doc" id="rebuild">
+      <p class="eyebrow">10 — <span class="en">Your own UI changes</span></p>
+      <h2><span class="en">Rebuilding the app</span></h2>
+      <p>
+        
+        <span class="en">The renderer is a webpack bundle, so "change a button" means rebuild. It's convenient to build right on the device, from a copy of the source. On the weak i.MX6 a build takes <b>≈8 minutes</b>.</span>
+      </p>
+      <div class="code">
+        <div class="bar"><span class="lamp"></span><span class="tt">rebuild recipe</span></div>
+<pre><span class="c"># 1. a working copy of the source</span>
+<span class="p">#</span> cp -r /astrohaus/finchley /data/fbuild
+<span class="p">#</span> cd /data/fbuild
+
+<span class="c"># 2. babel/webpack environment (once)</span>
+<span class="p">#</span> printf <span class="s">'{ "presets": ["react","env"] }'</span> &gt; .babelrc
+<span class="p">#</span> npm install --ignore-scripts
+
+<span class="c"># 3. edit sdk/ui/... then build (~8 min)</span>
+<span class="p">#</span> NODE_ENV=production ./node_modules/.bin/webpack \
+      --config webpack/webpack.config.prod.js
+
+<span class="c"># 4. deploy the bundle and restart</span>
+<span class="p">#</span> cp -r /data/fbuild/dist/* /astrohaus/finchley/dist/
+<span class="p">#</span> chown -R finchley:astrohaus /astrohaus/finchley/dist/
+<span class="p">#</span> systemctl restart finchley.service</pre>
+      </div>
+      <div class="call warn">
+        <div class="ic">⚠</div>
+        <div>
+          
+          <p class="en"><b>File ownership.</b> The app runs as the <code class="inl">finchley</code> user (not root). Files are owned by <code class="inl">finchley:astrohaus</code>. If you copy from a Mac over <code class="inl">scp</code> (as root), you must <code class="inl">chown finchley:astrohaus</code> afterward — otherwise the app can't read its own bundle. Keep a <code class="inl">bundle.js.bak</code> before each deploy.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc" id="custom">
+      <p class="eyebrow">11 — <span class="en">In practice</span></p>
+      <h2><span class="en">What we changed</span></h2>
+      <p>
+        
+        <span class="en">With root, the device becomes yours. Here's what we've already done — a map of what's possible.</span>
+      </p>
+
+      <h3><span class="num">→</span> <span class="en">Our own sync instead of a dead cloud</span></h3>
+      <p>
+        
+        <span class="en">We disabled the cloud daemons (commented out <code class="inl">document_uploader</code>, <code class="inl">settings_downloader</code>, <code class="inl">sync_shredded</code> in <code class="inl">core/daemons/index.js</code>) and wrote our own sync on the Mac side: once a minute a launchd agent reads the <code class="inl">document</code> table over SSH, turns each draft into a <code class="inl">.md</code> file, and drops it into a working folder + Obsidian. The text no longer goes to someone else's cloud; it stays on your own Mac.</span>
+      </p>
+
+      <h3><span class="num">→</span> <span class="en">A Russian keyboard</span></h3>
+      <p>
+        
+        <span class="en">The <code class="inl">ru</code> layout already existed in the keyboard engine but was disabled: the user's <code class="inl">languages</code> field in the DB was empty. One SQL line, and <kbd>Ctrl</kbd>+<kbd>Shift</kbd> cycles languages, with the built-in indicator.</span>
+      </p>
+      <div class="code">
+        <div class="bar"><span class="lamp"></span><span class="tt">SQL</span></div>
+<pre><span class="p">=&gt;</span> UPDATE <span class="s">"user"</span> SET languages = ARRAY['en','ru'];</pre>
+      </div>
+
+      <h3><span class="num">→</span> <span class="en">A road mode without the cloud</span></h3>
+      <p>
+        
+        <span class="en">To collect drafts on the road, the device brings up its own access point (<code class="inl">hostapd</code> + <code class="inl">dnsmasq</code>) and serves the drafts as a web page at <code class="inl">http://10.42.0.1</code>. The phone joins the "Freewrite" network and sees everything written. The firmware shipped without <code class="inl">dnsmasq</code>/<code class="inl">hostapd</code>/<code class="inl">iptables</code> — we had to sideload them (verified <code class="inl">.deb</code>s from <code class="inl">archive.debian.org</code> over HTTPS+SHA256, since <code class="inl">apt</code> has no sources).</span>
+      </p>
+
+      <h3><span class="num">→</span> <span class="en">A clock that doesn't lie</span></h3>
+      <p>
+        
+        <span class="en">The Traveler's RTC has <em>no battery</em> — powered off, it loses time. We keep it in sync three ways: a launchd agent on the Mac sets the time every 60&nbsp;s over USB; NTP when online; and a nudge from the phone on the road (the export page posts <code class="inl">/settime?ts=…</code>).</span>
+      </p>
+
+      <h3><span class="num">→</span> <span class="en">The interface, made ours</span></h3>
+      <ul>
+        <li><span class="en"><b>Removed all "Freewrite/Astrohaus" branding</b> from visible surfaces.</span></li>
+        <li><span class="en"><b>A permanent status panel</b> on the lower screen (folder · words · time · battery · sync · language) instead of paged widgets.</span></li>
+        <li><span class="en"><b>A font-size switcher</b> right in settings (keys 1/2/3), persisting to the DB through a core service.</span></li>
+        <li><span class="en"><b>Killed the LED</b> that shone through the case (an RGB lamp under <code class="inl">/sys/class/leds</code>).</span></li>
+      </ul>
+
+      <h3><span class="num">→</span> <span class="en">Deep-writing modes</span></h3>
+      <p>
+        
+        <span class="en">Since it's an offline instrument for depth, we added two modes for the act of writing itself. <b>Fade:</b> old text on the e-ink dissolves into fog, only the last lines at the cursor stay sharp — forward only, the Freewrite philosophy taken to its limit. <b>Immersion:</b> instead of a word count, a metric of the longest unbroken flow (how long you wrote without ever pausing more than 90&nbsp;seconds).</span>
+      </p>
+
+      <h3><span class="en">Under the hood: moves worth stealing</span></h3>
+      <p>
+        
+        <span class="en">Three mechanisms from our changes that generalise to anything on this device.</span>
+      </p>
+
+      <p><b><span class="en">1. Writing to the DB as the app, not as root.</span></b>
+        
+        <span class="en">The renderer runs as <code class="inl">finchley</code> and can't <code class="inl">su postgres</code>. A live change goes through Redux + a core service (persist), not straight to psql:</span></p>
+      <div class="code">
+        <div class="bar"><span class="lamp"></span><span class="tt">renderer → core → DB</span></div>
+<pre><span class="c">// live: Redux -> re-render Paper</span>
+this.props.actions.updateUser({...user, font_size: size});
+<span class="c">// persist: core service via remote</span>
+require('electron').remote
+  .require('./core/service/user')
+  .setFontSize(user.id, size);   <span class="c">// models.User.update(...)</span></pre>
+      </div>
+
+      <p><b><span class="en">2. Testing connectivity without <code class="inl">ping</code>.</span></b>
+        
+        <span class="en">There's no <code class="inl">ping</code> binary — do all diagnostics through bash's built-in <code class="inl">/dev/tcp</code> (or you'll get a false "no network," as we once did):</span></p>
+      <div class="code">
+        <div class="bar"><span class="lamp"></span><span class="tt">/dev/tcp</span></div>
+<pre><span class="p">#</span> timeout 4 bash -c <span class="s">'exec 3&lt;&gt;/dev/tcp/1.1.1.1/443'</span> &amp;&amp; echo UP || echo down</pre>
+      </div>
+
+      <p><b><span class="en">3. "Deep writing" — a mask on the textarea.</span></b>
+        
+        <span class="en">Fading old text is a CSS gradient mask on the <code class="inl">&lt;textarea&gt;</code>: transparent at the top edge, sharp at the cursor. No editor-engine changes:</span></p>
+      <div class="code">
+        <div class="bar"><span class="lamp"></span><span class="tt">Paper/index.js</span></div>
+<pre>maskImage: <span class="s">'linear-gradient(to bottom,'</span>
+  <span class="s">'transparent 0%, #000 14%, #000 100%)'</span></pre>
+      </div>
+      <p>
+        
+        <span class="en">Immersion (the longest unbroken flow) is measured from keystroke timing in a global <code class="inl">keydown</code>: a pause over 90&nbsp;s breaks the flow, over 20&nbsp;min starts a new session. All ordinary React in the renderer, available after a rebuild (§10).</span>
+      </p>
+    </section>
+
+    <section class="doc" id="reference">
+      <p class="eyebrow">12 — <span class="en">Map of the rakes</span></p>
+      <h2><span class="en">Reference &amp; gotchas</span></h2>
+      <p>
+        
+        <span class="en">Small things, each of which cost us an hour. Take them for free.</span>
+      </p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th><span class="en">Rake</span></th>
+            <th><span class="en">What to do</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td>ping</td><td><span class="en">it does NOT exist → test connectivity with <code class="inl">bash /dev/tcp/host/port</code>, not ping</span></td></tr>
+            <tr><td>curl</td><td><span class="en">also absent → fetch <code class="inl">.deb</code>s from a host and <code class="inl">dpkg -i</code></span></td></tr>
+            <tr><td>baker-powerd</td><td><span class="en">drops USB after ~2 min → <code class="inl">systemctl stop powerd</code> or work fast</span></td></tr>
+            <tr><td>/tmp</td><td><span class="en">clears on sleep — don't keep anything you need there</span></td></tr>
+            <tr><td>UART paste</td><td><span class="en">mangles quotes &amp; multi-line → one line at a time, verify by reading the file</span></td></tr>
+            <tr><td>sudo</td><td><span class="en">stock binary lacks setuid ("broken") → <code class="inl">chmod 4755 /usr/bin/sudo</code></span></td></tr>
+            <tr><td>renderer</td><td><span class="en">runs as <code class="inl">finchley</code> (non-root): no <code class="inl">su postgres</code> → write to the DB via a core service/sudoers</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="doc" id="brick">
+      <p class="eyebrow">13 — <span class="en">Safety net</span></p>
+      <h2><span class="en">Anti-brick</span></h2>
+      <p>
+        
+        <span class="en">The main reason this path is <em>relatively</em> safe: we <b>never flash the bootloader or kernel</b>. All edits are in the rootfs, which is reversible. Broke a file — restore it from backup through the same root access.</span>
+      </p>
+      <ul>
+        <li><span class="en"><b>Always back up</b> a file before editing it (<code class="inl">cp x x.bak</code>).</span></li>
+        <li><span class="en"><b>Don't touch <code class="inl">saveenv</code></b> in U-Boot — change the environment for one boot only.</span></li>
+        <li><span class="en"><b>Last resort:</b> the i.MX6 supports serial-download (SDP). Recovery via <code class="inl">imx_usb_loader</code> / <code class="inl">uuu</code> (mfgtools). ⚠️ but HAB is closed — you can't load your own unsigned image this way, so protect the rootfs rather than counting on a reflash.</span></li>
+      </ul>
+    </section>
+
+    <section class="doc" id="findings">
+      <p class="eyebrow">14 — <span class="en">The human side</span></p>
+      <h2><span class="en">What we found along the way</span></h2>
+      <p>
+        
+        <span class="en">When you climb inside a locked device, you meet not just its locks but the people who built it. Here are three finds about them.</span>
+      </p>
+
+      <h3><span class="en">Codenames — London Underground stations</span></h3>
+      <p>
+        
+        <span class="en">The system's components are named after London Underground stations — a quiet signature of the team, visible only to someone who climbed inside.</span>
+      </p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th><span class="en">Component</span></th><th><span class="en">Role</span></th><th>Tube</th></tr></thead>
+        <tbody>
+          <tr><td>finchley</td><td><span class="en">the app (Electron)</span></td><td>Finchley</td></tr>
+          <tr><td>highgate</td><td><span class="en">Postbox sync daemon</span></td><td>Highgate</td></tr>
+          <tr><td>baker-powerd / -paperd</td><td><span class="en">power &amp; screen</span></td><td>Baker&nbsp;Street</td></tr>
+          <tr><td>brixton</td><td><span class="en">app service</span></td><td>Brixton</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3><span class="en">The writer screensavers — the ones we turned off</span></h3>
+      <p>
+        
+        <span class="en">On boot the device cycled portraits of writers — ink-and-watercolour, each captioned "set your story free." They are genuinely beautiful, and listed below by name — the artwork itself is Astrohaus's, not ours to republish. We turned them off (on our panel they got in the way and flipped). In their place we put a <b>Chronolith</b>: at rest, the screen shows a literary quote that names the current hour. You glance at the sleeping machine, and there's a line from a book about exactly this time.</span>
+      </p>
+      <div class="gallery">
+        <figure><figcaption><span class="en">Edgar Allan Poe</span></figcaption></figure>
+        <figure><figcaption><span class="en">Alexandre Dumas</span></figcaption></figure>
+        <figure><figcaption><span class="en">Jane Austen</span></figcaption></figure>
+        <figure><figcaption><span class="en">Miguel de Cervantes</span></figcaption></figure>
+        <figure><figcaption><span class="en">Agatha Christie</span></figcaption></figure>
+        <figure><figcaption><span class="en">Isaac Asimov</span></figcaption></figure>
+      </div>
+
+      <h3><span class="en">What we put in their place — and the idea behind it</span></h3>
+      <p>
+        
+        <span class="en">We didn't just "switch things off." There was a single idea: turn a cloud-tethered gadget into a <b>personal, offline deep-writing instrument</b> that belongs to you. The writer screensavers are lovely, but on our re-oriented panel they flickered and flipped — so in their place we put something else:</span>
+      </p>
+      <ul>
+        <li><span class="en"><b>One permanent status line</b> instead of switchable widgets: folder · words · time · battery · "Synced to your Mac" · language — always visible, always honest.</span></li>
+        <li><span class="en"><b>A fade</b> — old text dissolves at the top edge so you look forward, not back; and <b>"immersion"</b> — a meter of your longest unbroken flow of writing.</span></li>
+        <li><span class="en"><b>Our own Mac-side sync</b> instead of the dead Postbox cloud, a <b>Russian keyboard</b>, a font-size control, and an honest interface with nobody else's brand.</span></li>
+      </ul>
+      <p>
+        
+        <span class="en">The through-line is simple: the machine serves the writing, and the writing belongs to you. The details of each move are in "What we changed."</span>
+      </p>
+
+      <h3><span class="en">Easter egg: a developer among the classics</span></h3>
+      <p>
+        
+        <span class="en">In that same screensaver folder, among Poe, Dumas and Austen, sits a file called <code class="inl">ginger.jpg</code> — and it is not a writer. It's a candid photo of one of the developers: a ginger fellow with an enormous mug in a café, in a "TIDES" fleece. A quiet joke left inside the firmware — a wave from the people who wrote it.</span>
+      </p>
+      <div class="egg">
+        <div><div class="cap">ginger.jpg</div></div>
+        <div>
+          
+          <p class="en" style="max-width:none;margin-top:0">We deliberately keep this easter egg in the document: it's part of the device's character. Taking control needn't be hostile to the people who built it. We took our typewriter back — but the fellow with the mug, we respect.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc" id="end">
+      <p class="eyebrow">15 — <span class="en">Finally</span></p>
+      <h2><span class="en">Disclaimer &amp; ethics</span></h2>
+      <p>
+        
+        <span class="en">All of this is with <b>your own</b> device — the one you bought and own. Repairing, studying, changing what's yours is fine; it's your right. We don't hand out anyone's firmware, don't bypass DRM for anyone's content, and don't poke around in anyone else's hardware.</span>
+      </p>
+      <p>
+        
+        <span class="en">And still: rooting voids the warranty, turns off the vendor's cloud sync, and can cost you your data or the machine itself. No promises. Do it thoughtfully, with backups, on a device you wouldn't mind losing. Everything above is how we did it. If you repeat it, you do so at your own risk.</span>
+      </p>
+      <div class="call first">
+        <div class="ic">✍</div>
+        <div>
+          
+          <p class="en"><b>Why any of this.</b> A good typewriter serves the person writing on it, not a cloud that will one day shut down. We gave the Traveler that simple thing back — you can do the same for yours.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="site-foot">
+  <div class="foot-rule"></div>
+  
+  <p class="en">Documentation of full root access to the Freewrite Traveler. Made by an owner, for owners. Freewrite® and Astrohaus® are trademarks of their respective holders; this project is neither affiliated with nor endorsed by them.</p>
+</footer>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    function setLang(l) { root.setAttribute('data-lang', 'en'); }
+    function setTheme(t) {
+      root.setAttribute('data-theme', t);
+      document.getElementById('th-light').setAttribute('aria-pressed', t === 'light');
+      document.getElementById('th-dark').setAttribute('aria-pressed', t === 'dark');
+      try { localStorage.setItem('trv-theme', t); } catch (e) {}
+    }
+    window.setLang = setLang; window.setTheme = setTheme;
+
+    var savedLang = 'ru', savedTheme = null;
+    try { savedLang = localStorage.getItem('trv-lang') || 'ru'; } catch (e) {}
+    try { savedTheme = localStorage.getItem('trv-theme'); } catch (e) {}
+    setLang(savedLang);
+    if (savedTheme) setTheme(savedTheme);
+
+    // scroll-spy for the TOC
+    var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+    var map = {};
+    links.forEach(function (a) { var id = a.getAttribute('href').slice(1); map[id] = a; });
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) {
+          links.forEach(function (a) { a.classList.remove('active'); });
+          if (map[en.target.id]) map[en.target.id].classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { obs.observe(s); });
+  })();
+</script>
+
+</body>
+</html>

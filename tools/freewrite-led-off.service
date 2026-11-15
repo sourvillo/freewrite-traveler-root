@@ -1,0 +1,10 @@
+[Unit]
+Description=Freewrite: гасим RGB-лампу корпуса (красный светодиод у кнопки)
+After=finchley.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/freewrite-led-off.sh
+
+[Install]
+WantedBy=multi-user.target

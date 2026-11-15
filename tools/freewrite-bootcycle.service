@@ -1,0 +1,12 @@
+[Unit]
+Description=Freewrite: смена писателей во время загрузки
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/freewrite-bootcycle.sh
+TimeoutStartSec=35
+
+[Install]
+WantedBy=sysinit.target
